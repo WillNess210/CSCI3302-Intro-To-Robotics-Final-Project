@@ -5,6 +5,7 @@ def invK():
 
 #Store ball location history
 pos_hist = [[], [], [], [], [], [], []] # time, arm x, arm y, arm z, ball x, ball y, ball z
+history_length = 100
 TIME = 0
 ARM_X = 1
 ARM_Y = 2
@@ -26,6 +27,8 @@ def addSensors(aX, aY, aZ, bX, bY, bZ):
     pos_hist[BALL_X].append(bX)
     pos_hist[BALL_Y].append(bY)
     pos_hist[BALL_Z].append(bZ)
+    if(len(pos_hist) > history_length):
+        pos_hist = pos_hist[int(len(pos_hist)/2):] # cut list in half, but keeping the most recent
 
 #Calculate final arm position function
 def calcPosition():
