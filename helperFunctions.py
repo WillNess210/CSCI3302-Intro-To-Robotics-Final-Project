@@ -1,12 +1,12 @@
 #Calculate final position function
-def calcPosition():
+def calcBallFinalPosition():
 
 
 
 
 
 #IK funtion for arm
-def invK():
+def calcArmPosition():
 
 
 
