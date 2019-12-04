@@ -1,5 +1,6 @@
 #Calculate final position function
-def calcBallFinalPosition():
+#input = {x,y,z,roll,pitch,yaw}
+def calcBallFinalPosition(input):
 
 
 
