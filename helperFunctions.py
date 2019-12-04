@@ -4,7 +4,7 @@ import time
 def invK():
 
 #Store ball location history
-pos_hist = [[], [], [], [], [], [], []]
+pos_hist = [[], [], [], [], [], [], []] # time, arm x, arm y, arm z, ball x, ball y, ball z
 def addSensors(aX, aY, aZ, bX, bY, bZ):
     pos_hist[0].append(time.time()) # ADD TIME STAMP
     pos_hist[1].append(aX)
