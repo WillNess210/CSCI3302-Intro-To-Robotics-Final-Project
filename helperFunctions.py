@@ -6,6 +6,7 @@ def invK():
 #Store ball location history
 pos_hist = [[], [], [], [], [], [], []] # time, arm x, arm y, arm z, ball x, ball y, ball z
 history_length = 100
+LOOKBACK_LENGTH = -2 # -2 means use the previous 2 datapoints, -3 means use the previous 3 datapoints, etc..
 TIME = 0
 ARM_X = 1
 ARM_Y = 2
@@ -36,16 +37,16 @@ def calcPosition():
     if len(pos_hist[TIME]) < 2:
         return None
     # CALCULATE LATEST VEL X & TIME LEFT
-    dX = pos_hist[BALL_X][-1] - pos_hist[BALL_X][-2]
-    dT = (pos_hist[TIME][-1] - pos_hist[TIME][-2])
+    dX = pos_hist[BALL_X][-1] - pos_hist[BALL_X][LOOKBACK_LENGTH]
+    dT = (pos_hist[TIME][-1] - pos_hist[TIME][LOOKBACK_LENGTH])
     vX = dX/dT
     distanceLeft = pos_hist[BALL_X][-1] - pos_hist[ARM_X][-1]
     timeLeft = distanceLeft / vX
     # CALCULATE VELOCITY & INTERCEPT
-    vY = (pos_hist[BALL_Y][-1] - pos_hist[BALL_Y][-2])/dT
-    interceptY = pos_hist[BALL_Y][-2] + vY*timeLeft - 4.9*timeLeft**2 #Y_0 + VY*T - 4.9T^2
+    vY = (pos_hist[BALL_Y][-1] - pos_hist[BALL_Y][LOOKBACK_LENGTH])/dT
+    interceptY = pos_hist[BALL_Y][-1] + vY*timeLeft - 4.9*timeLeft**2 #Y_0 + VY*T - 4.9T^2
     # CALCULATE END POSITION FOR Z
-    dZ = pos_hist[BALL_Z][-1] - pos_hist[BALL_Z][-2]
+    dZ = pos_hist[BALL_Z][-1] - pos_hist[BALL_Z][LOOKBACK_LENGTH]
     vZ = dZ / dT
     interceptZ = pos_hist[BALL_Z][-1] + vZ * timeLeft
     # CHECK IF THIS IS NOT A CATCHABLE BALL
