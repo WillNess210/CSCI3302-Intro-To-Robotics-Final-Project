@@ -8,10 +8,10 @@ from geometry_msgs.msg import PoseStamped
 MOCAP_TOPIC_NAME = "/vrpn_client_node/num_7/pose"
 publisher_arm = None
 subscriber_mocap = None
-ARM_SET_X = 0
+ARM_SET_X = -0.35 # SET THIS TO ARM CATCH VALUE
 ARM_SET_Y = 0
 ARM_SET_Z = 0
-CYCLE_TIME = 2
+CYCLE_TIME = 10000
 
 def main():
     init()
@@ -54,15 +54,15 @@ BALL_X = 4
 BALL_Y = 5
 BALL_Z = 6
 # ROBOT SETTINGS
-CATCH_AT_X = 3
+CATCH_AT_X = ARM_SET_X
 LOWEST_Y = 1
 HIGHEST_Y = 2
 LOWEST_Z = -1
 HIGHEST_Z = 1
 # method that adds sensor values to pos_history datastructure
-def addSensors(aX, aY, aZ, bX, bY, bZ):
+def addSensors(t, aX, aY, aZ, bX, bY, bZ):
     global pos_hist
-    pos_hist[TIME].append(time.time()) # ADD TIME STAMP
+    pos_hist[TIME].append(t) # ADD TIME STAMP
     pos_hist[ARM_X].append(aX)
     pos_hist[ARM_Y].append(aY)
     pos_hist[ARM_Z].append(aZ)
@@ -92,12 +92,13 @@ def calcPosition():
     dZ = pos_hist[BALL_Z][-1] - pos_hist[BALL_Z][LOOKBACK_LENGTH]
     vZ = dZ / dT
     interceptZ = pos_hist[BALL_Z][-1] + vZ * timeLeft
+    print ("INTERCEPT BALL AT: ", CATCH_AT_X, interceptY, interceptZ)
     # CHECK IF THIS IS NOT A CATCHABLE BALL
     if interceptY < LOWEST_Y or interceptY > HIGHEST_Y:
         print("Not setting setpoints. interceptY isn't realistic ")
         return None, None, None
     if interceptZ < LOWEST_Z or interceptZ > HIGHEST_Z:
-        print("Not setting setpoints. interceptZ isn't realistic ")
+        print("Not setting setpoints. interceptZ isn't realistic: ")
         return None, None, None
     # CALCULATE FINAL POSITIONS
     fX = CATCH_AT_X
@@ -113,9 +114,11 @@ def callback_update_mocap(data):
     bX = data.pose.position.x
     bY = data.pose.position.z
     bZ = data.pose.position.y
+    data_time = rospy.Time(data.header.stamp.secs, data.header.stamp.nsecs)
+    print("Received: ", bX, bY, bZ, " at time ", data_time.to_sec())
     # CURRENTLY USING SETPOINTS AS WHERE ARM IS
     # TODO CHANGE THIS TO ACTUAL ARM POSITION. IS THIS A TOPIC WE CAN LISTEN TO?
-    addSensors(ARM_SET_X, ARM_SET_Y, ARM_SET_Z, bX, bY, bZ)
+    addSensors(data_time.to_sec(), ARM_SET_X, ARM_SET_Y, ARM_SET_Z, bX, bY, bZ)
     fX, fY, fZ = calcPosition()
     if(fX == None):
         return
