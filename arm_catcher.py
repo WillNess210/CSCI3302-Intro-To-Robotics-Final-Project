@@ -67,7 +67,7 @@ def callback_update_mocap(data):
 
 # ARM CONTROLLING LOGIC
 def controlArm(arm_pub):
-    global ARM_SET_X, ARM_SET_Y, ARM_SET_Z
+    global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # USE THESE VARAIBLES AS SET POINTS
     print("controlling arm")
     # arm_pub.publish(arm_msg) # EXAMPLE CALL
     # TODO add in logic to set arm position to set X,Y,Z
