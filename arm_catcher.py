@@ -18,7 +18,7 @@ def main():
         startTime = time.time()
         print("TURN")
         # ARM CONTROLLING LOGIC GOES BELOW HERE
-        
+        controlArm(publisher_arm)
         # ARM CONTROLLING LOGIC ENDS HERE
         endTime = time.time()
         if endTime - startTime < CYCLE_TIME:
