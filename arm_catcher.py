@@ -3,7 +3,9 @@
 import rospy
 import time
 from std_msgs.msg import String
+from geometry_msgs.msg import PoseStamped
 
+MOCAP_TOPIC_NAME = "/vrpn_client_node/num_7/pose"
 publisher_arm = None
 subscriber_mocap = None
 CYCLE_TIME = 0.1 # In seconds
@@ -29,16 +31,39 @@ def init():
     global subscriber_mocap
     rospy.init_node("catcher_driver")
 
-    # SUBSCRIBER
-    #subscriber_mocap = rospy.Subscriber('topic_name', message_type, callback_update_mocap) TODO fill in parameters
+    # SUBSCRIBER- geometry_msgs/PoseStamped
+    subscriber_mocap = rospy.Subscriber(MOCAP_TOPIC_NAME, PoseStamped, callback_update_mocap)
 
     # PUBLISHER
     #publisher_arm = rospy.Publisher('topic_name', message_type , queue_size=10) TODO fill in parameters
+
+
+
+
+#
+# MOCAP
+#
+
+
 
 # MOCAP INCOMING DATA LOGIC
 def callback_update_mocap(data):
     print("received mocap data")
     # TODO add in logic that takes mocap data and sets global X, Y, Z setpints for arm
+
+
+
+
+
+
+
+
+
+
+
+#
+# ARM
+#
 
 # ARM CONTROLLING LOGIC
 def controlArm(arm_pub):
