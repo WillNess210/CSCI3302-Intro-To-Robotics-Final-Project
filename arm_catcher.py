@@ -25,15 +25,18 @@ publisher_catchcube = None
 publisher_setarm_vis = None
 publisher_setarm_path = None
 UNIQUE_ARM_SET_HISTORY = [[], [], [], []]
-ARM_SET_X = 0.25 # SET THIS TO ARM CATCH VALUE
-ARM_SET_Y = 0 # STARTING POINT
-ARM_SET_Z = 0 # STARTING POINT
+ARM_SET_X = -2.4 # SET THIS TO ARM CATCH VALUE
+ARM_SET_Y = 0.0 # STARTING POINT
+ARM_SET_Z = 0.0 # STARTING POINT
+ARM_ORIGIN_X = ARM_SET_X
+ARM_ORIGIN_Y = 0.0
+ARM_ORIGIN_Z = 1.0
 # ROBOT SETTINGS
 CATCH_AT_X = ARM_SET_X
-LOWEST_Y = -1
-HIGHEST_Y = 1
-LOWEST_Z = 1
-HIGHEST_Z = 2
+LOWEST_Y = -0.5
+HIGHEST_Y = 0.5
+LOWEST_Z = 0.5
+HIGHEST_Z = 3
 hasCaught = False
 visualize = True
 
@@ -424,9 +427,14 @@ def callback_update_mocap(data):
 # ARM CONTROLLING LOGIC
 def controlArm(arm_pub):
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # USE THESE VARAIBLES AS SET POINTS
+    global ARM_ORIGIN_X, ARM_ORIGIN_Y, ARM_ORIGIN_Z, LOWEST_Y, LOWEST_Z, HIGHEST_Z, HIGHEST_Y
     #print("Driving arm to: ", ARM_SET_X, ARM_SET_Y, ARM_SET_Z)
     # arm_pub.publish(arm_msg) # EXAMPLE CALL
     # TODO add in logic to set arm position to set X,Y,Z
+    TRANSLATED_X = ARM_SET_X - ARM_ORIGIN_X
+    TRANSLATED_Y = ARM_ORIGIN_Y + (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
+    TRANSLATED_Z = ARM_ORIGIN_Z + (ARM_SET_Z - ((LOWEST_Z + HIGHEST_Z)/2.0))
+
 
 if __name__ == "__main__":
     main()
