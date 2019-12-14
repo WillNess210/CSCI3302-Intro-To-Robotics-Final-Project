@@ -84,7 +84,7 @@ def calcPosition():
     dT = (pos_hist[TIME][-1] - pos_hist[TIME][LOOKBACK_LENGTH])
     vX = dX/dT
     distanceLeft = pos_hist[BALL_X][-1] - pos_hist[ARM_X][-1]
-    timeLeft = distanceLeft / vX
+    timeLeft = abs(distanceLeft / vX)
     # CALCULATE VELOCITY & INTERCEPT
     vY = (pos_hist[BALL_Y][-1] - pos_hist[BALL_Y][LOOKBACK_LENGTH])/dT
     interceptY = pos_hist[BALL_Y][-1] + vY*timeLeft - 4.9*timeLeft**2 #Y_0 + VY*T - 4.9T^2
