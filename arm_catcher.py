@@ -2,7 +2,7 @@
 # license removed for brevity
 import rospy
 import time
-from std_msgs.msg import String
+from std_msgs.msg import String, Empty
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import Path
@@ -23,10 +23,20 @@ publisher_vz = None
 publisher_catchzone = None
 publisher_catchcube = None
 publisher_setarm_vis = None
+publisher_setarm_path = None
 UNIQUE_ARM_SET_HISTORY = [[], [], [], []]
-ARM_SET_X = -0.35 # SET THIS TO ARM CATCH VALUE
+ARM_SET_X = 0.25 # SET THIS TO ARM CATCH VALUE
 ARM_SET_Y = 0 # STARTING POINT
 ARM_SET_Z = 0 # STARTING POINT
+# ROBOT SETTINGS
+CATCH_AT_X = ARM_SET_X
+LOWEST_Y = -1
+HIGHEST_Y = 1
+LOWEST_Z = 1
+HIGHEST_Z = 2
+hasCaught = False
+
+
 CYCLE_TIME = 0.01
 ball_paths = None
 latest_seq_update = -1
@@ -37,7 +47,7 @@ Z_MODIFIER = 1.0 # increase to overestimate x velocity, decrease to underestimat
 def main():
     global publisher_arm, publisher_catchzone, publisher_catchcube
     global ball_paths, latest_seq_update
-    global CATCH_AT_X, LOWEST_Y, LOWEST_Z, HIGHEST_Y, HIGHEST_Z, ARM_SET_Y, ARM_SET_Z
+    global CATCH_AT_X, LOWEST_Y, LOWEST_Z, HIGHEST_Y, HIGHEST_Z, ARM_SET_Y, ARM_SET_Z, hasCaught
     init()       
     # start loop
     bpsize = len(ball_paths)
@@ -78,13 +88,19 @@ def main():
         catchcube.scale.x = 0.05
         catchcube.scale.y = abs(HIGHEST_Y - LOWEST_Y)
         catchcube.scale.z = abs(HIGHEST_Z - LOWEST_Z)
-        catchcube.color.r = 0.0
-        catchcube.color.g = 0.3
-        catchcube.color.b = 0.7
+        if hasCaught:
+            catchcube.color.r = 0.0
+            catchcube.color.g = 0.3
+            catchcube.color.b = 0.0
+        else:
+            catchcube.color.r = 0.0
+            catchcube.color.g = 0.3
+            catchcube.color.b = 0.7
         catchcube.color.a = 0.35
         publisher_catchcube.publish(catchcube)
         # ARM CONTROLLING LOGIC GOES BELOW HERE
-        controlArm(publisher_arm)
+        if hasCaught == False:
+            controlArm(publisher_arm)
         # ARM CONTROLLING LOGIC ENDS HERE
         # PATH PUBLISHER LOGIC GOES BELOW HERE
         if len(ball_paths) > bpsize:
@@ -103,8 +119,10 @@ def main():
 
 def init():
     global publisher_arm, publisher_intercept, publisher_path, publisher_pred_path, publisher_ball, publisher_vx, publisher_vy, publisher_vz, publisher_catchzone, publisher_catchcube, publisher_setarm_vis
-    global subscriber_mocap
+    global subscriber_mocap, publisher_setarm_path
     global ball_paths
+    global hasCaught
+    hasCaught = False
     rospy.init_node("catcher_driver")
 
     # path setup
@@ -125,6 +143,7 @@ def init():
     publisher_catchzone = rospy.Publisher('catch_zone', PolygonStamped, queue_size=10)
     publisher_catchcube = rospy.Publisher('catch_cube', Marker, queue_size=10)
     publisher_setarm_vis = rospy.Publisher('arm_set_Vis', PointStamped, queue_size=10)
+    publisher_setarm_path = rospy.Publisher('arm_set_path', Path, queue_size=10)
 
 
 
@@ -143,12 +162,7 @@ ARM_Z = 3
 BALL_X = 4
 BALL_Y = 5
 BALL_Z = 6
-# ROBOT SETTINGS
-CATCH_AT_X = ARM_SET_X
-LOWEST_Y = -0.75
-HIGHEST_Y = 0.25
-LOWEST_Z = 1
-HIGHEST_Z = 2
+
 
 def getLookbackLength():
     global LOOKBACK_LENGTH, pos_hist
@@ -170,7 +184,8 @@ def addSensors(t, aX, aY, aZ, bX, bY, bZ):
 
 #Calculate final arm position function, uses pos_hist
 def calcPosition():
-    global pos_hist, publisher_pred_path, publisher_vx, publisher_vy, publisher_vz, CATCH_AT_X, X_MODIFIER, Y_MODIFIER, Z_MODIFIER, UNIQUE_ARM_SET_HISTORY, publisher_intercept
+    global pos_hist, publisher_pred_path, publisher_vx, publisher_vy, publisher_vz, CATCH_AT_X, X_MODIFIER, Y_MODIFIER, Z_MODIFIER, UNIQUE_ARM_SET_HISTORY, publisher_intercept, publisher_setarm_vis
+    global hasCaught
     # check to see if loop repeated
     if len(pos_hist[TIME]) >= 2:
         if pos_hist[TIME][-1] < pos_hist[TIME][-2]:
@@ -185,14 +200,13 @@ def calcPosition():
             UNIQUE_ARM_SET_HISTORY[ARM_X] = []
             UNIQUE_ARM_SET_HISTORY[ARM_Y] = []
             UNIQUE_ARM_SET_HISTORY[ARM_Z] = []
-            UNIQUE_ARM_SET_HISTORY[BALL_X] = []
-            UNIQUE_ARM_SET_HISTORY[BALL_Y] = []
-            UNIQUE_ARM_SET_HISTORY[BALL_Z] = []
+            hasCaught = False
+
     # Only run if possible
     if len(pos_hist[TIME]) < 2:
         print("Not setting setpoints. Not enough data")
         return None, None, None
-    # Calculating differences
+    # Calculating differences 
     lookback = getLookbackLength()
     dX = pos_hist[BALL_X][-1] - pos_hist[BALL_X][lookback]
     dY = pos_hist[BALL_Y][-1] - pos_hist[BALL_Y][lookback]
@@ -295,11 +309,12 @@ def calcPosition():
     fZ = interceptZ
 
     return fX, fY, fZ
-
+lX = -1.0
 # MOCAP INCOMING DATA LOGIC
 def callback_update_mocap(data):
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # SET ARM FINAL POSITION IN THESE VARIABLES
-    global ball_paths, latest_seq_update, publisher_ball, UNIQUE_ARM_SET_HISTORY, publisher_setarm_vis
+    global ball_paths, latest_seq_update, publisher_ball, UNIQUE_ARM_SET_HISTORY, publisher_setarm_vis, publisher_setarm_path, pos_hist, X_MODIFIER
+    global lX, hasCaught
     if data.header.seq > latest_seq_update:
         latest_seq_update = data.header.seq
         ball_paths.append(data)
@@ -316,6 +331,11 @@ def callback_update_mocap(data):
     bZ = data.pose.position.z
     data_time = rospy.Time(data.header.stamp.secs, data.header.stamp.nsecs)
     print("Received: ", bX, bY, bZ, " at time ", data_time.to_sec())
+    # CHECK IF BALL HAS PASSED PLANE
+    if not (lX == -1.0):
+        if(np.sign(lX - ARM_SET_X) != np.sign(bX - ARM_SET_X)):
+            hasCaught = True
+    lX = bX
     # CURRENTLY USING SETPOINTS AS WHERE ARM IS
     # TODO CHANGE THIS TO ACTUAL ARM POSITION. IS THIS A TOPIC WE CAN LISTEN TO?
     addSensors(data_time.to_sec(), ARM_SET_X, ARM_SET_Y, ARM_SET_Z, bX, bY, bZ)
@@ -364,6 +384,29 @@ def callback_update_mocap(data):
     setarm_vis_msg.point.y = ARM_SET_Y
     setarm_vis_msg.point.z = ARM_SET_Z
     publisher_setarm_vis.publish(setarm_vis_msg)
+    # visualizing setarm path
+    set_path = Path()
+    set_path.header.frame_id = "world"
+    set_path.header.stamp = rospy.Time.now()
+    set_path.poses = []
+    lookback = getLookbackLength()
+    vX = (pos_hist[BALL_X][-1] - pos_hist[BALL_X][lookback]) / (pos_hist[TIME][-1] - pos_hist[TIME][lookback]) * X_MODIFIER
+    timeLeft = abs((pos_hist[BALL_X][-1] - ARM_SET_X)/vX)
+    pvY = (ARM_SET_Y - pos_hist[BALL_Y][-1])/timeLeft
+    pvZ = (ARM_SET_Z - pos_hist[BALL_Z][-1] + 4.9 * (timeLeft ** 2))/timeLeft
+    for i in np.arange(0, 1, 0.01):
+        nX = pos_hist[BALL_X][-1] + vX * (i * timeLeft)
+        nY = pos_hist[BALL_Y][-1] + pvY * (i * timeLeft)
+        nZ = pos_hist[BALL_Z][-1] + pvZ * (i * timeLeft) - 4.9*((i * timeLeft)**2)
+        newPos = PoseStamped()
+        newPos.pose.position.x = nX
+        newPos.pose.position.y = nY
+        newPos.pose.position.z = nZ
+        newPos.header.frame_id = "world"
+        newPos.header.stamp = rospy.Time.now()
+        set_path.poses.append(newPos)
+    publisher_setarm_path.publish(set_path)
+    
 
 
 #
