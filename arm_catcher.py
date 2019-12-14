@@ -35,7 +35,7 @@ HIGHEST_Y = 1
 LOWEST_Z = 1
 HIGHEST_Z = 2
 hasCaught = False
-visualize = False
+visualize = True
 
 
 CYCLE_TIME = 0.01
