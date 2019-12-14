@@ -428,7 +428,8 @@ def callback_update_mocap(data):
 def controlArm(arm_pub):
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # USE THESE VARAIBLES AS SET POINTS
     global ARM_ORIGIN_X, ARM_ORIGIN_Y, ARM_ORIGIN_Z, LOWEST_Y, LOWEST_Z, HIGHEST_Z, HIGHEST_Y
-    #print("Driving arm to: ", ARM_SET_X, ARM_SET_Y, ARM_SET_Z)
+    if not (ARM_SET_X == ARM_ORIGIN_X and ARM_SET_Y >= LOWEST_Y and ARM_SET_Y <= HIGHEST_Y and ARM_SET_Z >= LOWEST_Z and ARM_SET_Z <= HIGHEST_Z):
+        return
     # arm_pub.publish(arm_msg) # EXAMPLE CALL
     # TODO add in logic to set arm position to set X,Y,Z
     TRANSLATED_X = ARM_SET_X - ARM_ORIGIN_X
