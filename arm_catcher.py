@@ -35,6 +35,7 @@ HIGHEST_Y = 1
 LOWEST_Z = 1
 HIGHEST_Z = 2
 hasCaught = False
+visualize = False
 
 
 CYCLE_TIME = 0.01
@@ -46,7 +47,7 @@ Z_MODIFIER = 1.0 # increase to overestimate x velocity, decrease to underestimat
 
 def main():
     global publisher_arm, publisher_catchzone, publisher_catchcube
-    global ball_paths, latest_seq_update
+    global ball_paths, latest_seq_update, visualize
     global CATCH_AT_X, LOWEST_Y, LOWEST_Z, HIGHEST_Y, HIGHEST_Z, ARM_SET_Y, ARM_SET_Z, hasCaught
     init()       
     # start loop
@@ -54,64 +55,66 @@ def main():
     while not rospy.is_shutdown():
         startTime = time.time()
         # init catchzone
-        catchzone = PolygonStamped()
-        catchzone.header.frame_id = "world"
-        now = rospy.get_rostime()
-        catchzone.header.stamp.secs = now.secs
-        catchzone.header.stamp.nsecs = now.nsecs
-        BL = Point32()
-        BL.x = CATCH_AT_X
-        BL.y = LOWEST_Y
-        BL.z = LOWEST_Z
-        BR = Point32()
-        BR.x = CATCH_AT_X
-        BR.y = LOWEST_Y
-        BR.z = HIGHEST_Z
-        TL = Point32()
-        TL.x = CATCH_AT_X
-        TL.y = HIGHEST_Y
-        TL.z = HIGHEST_Z
-        TR = Point32()
-        TR.x = CATCH_AT_X
-        TR.y = HIGHEST_Y
-        TR.z = LOWEST_Z
-        poly_pts = [BL, BR, TL, TR]
-        catchzone.polygon.points = poly_pts
-        publisher_catchzone.publish(catchzone)
-        catchcube = Marker()
-        catchcube.type = Marker.CUBE
-        catchcube.action = Marker.ADD
-        catchcube.header = catchzone.header
-        catchcube.pose.position.x = CATCH_AT_X
-        catchcube.pose.position.y = LOWEST_Y + (HIGHEST_Y - LOWEST_Y) / 2.0
-        catchcube.pose.position.z = LOWEST_Z + (HIGHEST_Z - LOWEST_Z) / 2.0
-        catchcube.scale.x = 0.05
-        catchcube.scale.y = abs(HIGHEST_Y - LOWEST_Y)
-        catchcube.scale.z = abs(HIGHEST_Z - LOWEST_Z)
-        if hasCaught:
-            catchcube.color.r = 0.0
-            catchcube.color.g = 0.3
-            catchcube.color.b = 0.0
-        else:
-            catchcube.color.r = 0.0
-            catchcube.color.g = 0.3
-            catchcube.color.b = 0.7
-        catchcube.color.a = 0.35
-        publisher_catchcube.publish(catchcube)
+        if visualize:
+            catchzone = PolygonStamped()
+            catchzone.header.frame_id = "world"
+            now = rospy.get_rostime()
+            catchzone.header.stamp.secs = now.secs
+            catchzone.header.stamp.nsecs = now.nsecs
+            BL = Point32()
+            BL.x = CATCH_AT_X
+            BL.y = LOWEST_Y
+            BL.z = LOWEST_Z
+            BR = Point32()
+            BR.x = CATCH_AT_X
+            BR.y = LOWEST_Y
+            BR.z = HIGHEST_Z
+            TL = Point32()
+            TL.x = CATCH_AT_X
+            TL.y = HIGHEST_Y
+            TL.z = HIGHEST_Z
+            TR = Point32()
+            TR.x = CATCH_AT_X
+            TR.y = HIGHEST_Y
+            TR.z = LOWEST_Z
+            poly_pts = [BL, BR, TL, TR]
+            catchzone.polygon.points = poly_pts
+            publisher_catchzone.publish(catchzone)
+            catchcube = Marker()
+            catchcube.type = Marker.CUBE
+            catchcube.action = Marker.ADD
+            catchcube.header = catchzone.header
+            catchcube.pose.position.x = CATCH_AT_X
+            catchcube.pose.position.y = LOWEST_Y + (HIGHEST_Y - LOWEST_Y) / 2.0
+            catchcube.pose.position.z = LOWEST_Z + (HIGHEST_Z - LOWEST_Z) / 2.0
+            catchcube.scale.x = 0.05
+            catchcube.scale.y = abs(HIGHEST_Y - LOWEST_Y)
+            catchcube.scale.z = abs(HIGHEST_Z - LOWEST_Z)
+            if hasCaught:
+                catchcube.color.r = 0.0
+                catchcube.color.g = 0.3
+                catchcube.color.b = 0.0
+            else:
+                catchcube.color.r = 0.0
+                catchcube.color.g = 0.3
+                catchcube.color.b = 0.7
+            catchcube.color.a = 0.35
+            publisher_catchcube.publish(catchcube)
         # ARM CONTROLLING LOGIC GOES BELOW HERE
         if hasCaught == False:
             controlArm(publisher_arm)
         # ARM CONTROLLING LOGIC ENDS HERE
         # PATH PUBLISHER LOGIC GOES BELOW HERE
-        if len(ball_paths) > bpsize:
-            msg2 = Path()
-            msg2.poses = ball_paths
-            msg2.header.frame_id = "world"
-            now = rospy.get_rostime()
-            msg2.header.stamp.secs = now.secs
-            msg2.header.stamp.nsecs = now.nsecs
-            publisher_path.publish(msg2)
-            bpsize = len(ball_paths)
+        if visualize:
+            if len(ball_paths) > bpsize:
+                msg2 = Path()
+                msg2.poses = ball_paths
+                msg2.header.frame_id = "world"
+                now = rospy.get_rostime()
+                msg2.header.stamp.secs = now.secs
+                msg2.header.stamp.nsecs = now.nsecs
+                publisher_path.publish(msg2)
+                bpsize = len(ball_paths)
         # PATH PUBLISER LOGIC GOES ABOVE HERE
         endTime = time.time()
         if endTime - startTime < CYCLE_TIME:
@@ -185,7 +188,7 @@ def addSensors(t, aX, aY, aZ, bX, bY, bZ):
 #Calculate final arm position function, uses pos_hist
 def calcPosition():
     global pos_hist, publisher_pred_path, publisher_vx, publisher_vy, publisher_vz, CATCH_AT_X, X_MODIFIER, Y_MODIFIER, Z_MODIFIER, UNIQUE_ARM_SET_HISTORY, publisher_intercept, publisher_setarm_vis
-    global hasCaught
+    global hasCaught, visualize
     # check to see if loop repeated
     if len(pos_hist[TIME]) >= 2:
         if pos_hist[TIME][-1] < pos_hist[TIME][-2]:
@@ -226,68 +229,69 @@ def calcPosition():
     timeLeft = abs(distanceLeft / vX)
     interceptY = pos_hist[BALL_Y][-1] + vY * timeLeft
     interceptZ = pos_hist[BALL_Z][-1] + vZ * timeLeft - 4.9 * (timeLeft**2)
-    # PUBLISH PREDICTED PATH TO THE VISUALIZER
-    pred_path = []
-    for i in np.arange(0, 1, 0.01):
-        nX = pos_hist[BALL_X][-1] + vX * (i * timeLeft)
-        nY = pos_hist[BALL_Y][-1] + vY * (i * timeLeft)
-        nZ = pos_hist[BALL_Z][-1] + vZ * (i * timeLeft) - 4.9*((i * timeLeft)**2)
-        newPos = PoseStamped()
-        newPos.pose.position.x = nX
-        newPos.pose.position.y = nY
-        newPos.pose.position.z = nZ
-        newPos.header.frame_id = "world"
+    if visualize:
+        # PUBLISH PREDICTED PATH TO THE VISUALIZER
+        pred_path = []
+        for i in np.arange(0, 1, 0.01):
+            nX = pos_hist[BALL_X][-1] + vX * (i * timeLeft)
+            nY = pos_hist[BALL_Y][-1] + vY * (i * timeLeft)
+            nZ = pos_hist[BALL_Z][-1] + vZ * (i * timeLeft) - 4.9*((i * timeLeft)**2)
+            newPos = PoseStamped()
+            newPos.pose.position.x = nX
+            newPos.pose.position.y = nY
+            newPos.pose.position.z = nZ
+            newPos.header.frame_id = "world"
+            now = rospy.get_rostime()
+            newPos.header.stamp.secs = now.secs
+            newPos.header.stamp.nsecs = now.nsecs
+            pred_path.append(newPos)
+        pred_path_msg = Path()
+        pred_path_msg.poses = pred_path
+        pred_path_msg.header.frame_id = "world"
         now = rospy.get_rostime()
-        newPos.header.stamp.secs = now.secs
-        newPos.header.stamp.nsecs = now.nsecs
-        pred_path.append(newPos)
-    pred_path_msg = Path()
-    pred_path_msg.poses = pred_path
-    pred_path_msg.header.frame_id = "world"
-    now = rospy.get_rostime()
-    pred_path_msg.header.stamp.secs = now.secs
-    pred_path_msg.header.stamp.nsecs = now.nsecs
-    publisher_pred_path.publish(pred_path_msg)
-    # PUBLISH VX, VY, VZ TO THE VISUALIZER
-    vXM = Path()
-    vXO = PoseStamped()
-    vXO.pose.position.x = pos_hist[BALL_X][-1]
-    vXO.pose.position.y = pos_hist[BALL_Y][-1]
-    vXO.pose.position.z = pos_hist[BALL_Z][-1]
-    vXF = PoseStamped()
-    vXF.pose.position.x = pos_hist[BALL_X][-1] + vX
-    vXF.pose.position.y = pos_hist[BALL_Y][-1]
-    vXF.pose.position.z = pos_hist[BALL_Z][-1]
-    vXM.poses = [vXO, vXF]
-    vXM.header = pred_path_msg.header
-    publisher_vx.publish(vXM)
-    #y
-    vYM = Path()
-    vYO = PoseStamped()
-    vYO.pose.position.x = pos_hist[BALL_X][-1]
-    vYO.pose.position.y = pos_hist[BALL_Y][-1]
-    vYO.pose.position.z = pos_hist[BALL_Z][-1]
-    vYF = PoseStamped()
-    vYF.pose.position.x = pos_hist[BALL_X][-1]
-    vYF.pose.position.y = pos_hist[BALL_Y][-1] + vY
-    vYF.pose.position.z = pos_hist[BALL_Z][-1]
-    vYM.poses = [vYO, vYF]
-    vYM.header = pred_path_msg.header
-    publisher_vy.publish(vYM)
-    #z
-    vZM = Path()
-    vZO = PoseStamped()
-    vZO.pose.position.x = pos_hist[BALL_X][-1]
-    vZO.pose.position.y = pos_hist[BALL_Y][-1]
-    vZO.pose.position.z = pos_hist[BALL_Z][-1]
-    vZF = PoseStamped()
-    vZF.pose.position.x = pos_hist[BALL_X][-1]
-    vZF.pose.position.y = pos_hist[BALL_Y][-1]
-    vZF.pose.position.z = pos_hist[BALL_Z][-1] + vZ
-    vZM.poses = [vZO, vZF]
-    vZM.header = pred_path_msg.header
-    publisher_vz.publish(vZM)
-    print("velocities: " , vX, vY, vZ)
+        pred_path_msg.header.stamp.secs = now.secs
+        pred_path_msg.header.stamp.nsecs = now.nsecs
+        publisher_pred_path.publish(pred_path_msg)
+        # PUBLISH VX, VY, VZ TO THE VISUALIZER
+        vXM = Path()
+        vXO = PoseStamped()
+        vXO.pose.position.x = pos_hist[BALL_X][-1]
+        vXO.pose.position.y = pos_hist[BALL_Y][-1]
+        vXO.pose.position.z = pos_hist[BALL_Z][-1]
+        vXF = PoseStamped()
+        vXF.pose.position.x = pos_hist[BALL_X][-1] + vX
+        vXF.pose.position.y = pos_hist[BALL_Y][-1]
+        vXF.pose.position.z = pos_hist[BALL_Z][-1]
+        vXM.poses = [vXO, vXF]
+        vXM.header = pred_path_msg.header
+        publisher_vx.publish(vXM)
+        #y
+        vYM = Path()
+        vYO = PoseStamped()
+        vYO.pose.position.x = pos_hist[BALL_X][-1]
+        vYO.pose.position.y = pos_hist[BALL_Y][-1]
+        vYO.pose.position.z = pos_hist[BALL_Z][-1]
+        vYF = PoseStamped()
+        vYF.pose.position.x = pos_hist[BALL_X][-1]
+        vYF.pose.position.y = pos_hist[BALL_Y][-1] + vY
+        vYF.pose.position.z = pos_hist[BALL_Z][-1]
+        vYM.poses = [vYO, vYF]
+        vYM.header = pred_path_msg.header
+        publisher_vy.publish(vYM)
+        #z
+        vZM = Path()
+        vZO = PoseStamped()
+        vZO.pose.position.x = pos_hist[BALL_X][-1]
+        vZO.pose.position.y = pos_hist[BALL_Y][-1]
+        vZO.pose.position.z = pos_hist[BALL_Z][-1]
+        vZF = PoseStamped()
+        vZF.pose.position.x = pos_hist[BALL_X][-1]
+        vZF.pose.position.y = pos_hist[BALL_Y][-1]
+        vZF.pose.position.z = pos_hist[BALL_Z][-1] + vZ
+        vZM.poses = [vZO, vZF]
+        vZM.header = pred_path_msg.header
+        publisher_vz.publish(vZM)
+        print("velocities: " , vX, vY, vZ)
     # CHECK IF THIS IS NOT A CATCHABLE BALL
     if interceptY < LOWEST_Y or interceptY > HIGHEST_Y:
         print("Not setting setpoints. interceptY isn't realistic ")
@@ -296,34 +300,37 @@ def calcPosition():
         print("Not setting setpoints. interceptZ isn't realistic: ")
         return None, None, None
     # PUBLISH INTERCEPT
-    int_msg = PointStamped()
-    int_msg.header.frame_id = "world"
-    int_msg.header.stamp = rospy.Time.now()
-    int_msg.point.x = interceptX
-    int_msg.point.y = interceptY
-    int_msg.point.z = interceptZ
-    publisher_intercept.publish(int_msg)
+    if visualize:
+        int_msg = PointStamped()
+        int_msg.header.frame_id = "world"
+        int_msg.header.stamp = rospy.Time.now()
+        int_msg.point.x = interceptX
+        int_msg.point.y = interceptY
+        int_msg.point.z = interceptZ
+        publisher_intercept.publish(int_msg)
     # CALCULATE FINAL POSITIONS
     fX = CATCH_AT_X
     fY = interceptY
     fZ = interceptZ
 
     return fX, fY, fZ
+
 lX = -1.0
 # MOCAP INCOMING DATA LOGIC
 def callback_update_mocap(data):
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # SET ARM FINAL POSITION IN THESE VARIABLES
     global ball_paths, latest_seq_update, publisher_ball, UNIQUE_ARM_SET_HISTORY, publisher_setarm_vis, publisher_setarm_path, pos_hist, X_MODIFIER
-    global lX, hasCaught
-    if data.header.seq > latest_seq_update:
-        latest_seq_update = data.header.seq
-        ball_paths.append(data)
-    ball_point = PointStamped()
-    ball_point.header = data.header
-    ball_point.point.x = data.pose.position.x
-    ball_point.point.y = data.pose.position.y
-    ball_point.point.z = data.pose.position.z
-    publisher_ball.publish(ball_point)
+    global lX, hasCaught, visualize
+    if visualize:
+        if data.header.seq > latest_seq_update:
+            latest_seq_update = data.header.seq
+            ball_paths.append(data)
+        ball_point = PointStamped()
+        ball_point.header = data.header
+        ball_point.point.x = data.pose.position.x
+        ball_point.point.y = data.pose.position.y
+        ball_point.point.z = data.pose.position.z
+        publisher_ball.publish(ball_point)
     print("received mocap data")
 
     bX = data.pose.position.x
@@ -377,35 +384,36 @@ def callback_update_mocap(data):
         ARM_SET_Z = stats.mean(recentPts[ARM_Z])
         print("TIME: ", len(recentPts[TIME]))
     print("Setting setpoints to: ", ARM_SET_X, ARM_SET_Y, ARM_SET_Z)
-    setarm_vis_msg = PointStamped()
-    setarm_vis_msg.header.frame_id = "world"
-    setarm_vis_msg.header.stamp = rospy.Time.now()
-    setarm_vis_msg.point.x = ARM_SET_X
-    setarm_vis_msg.point.y = ARM_SET_Y
-    setarm_vis_msg.point.z = ARM_SET_Z
-    publisher_setarm_vis.publish(setarm_vis_msg)
-    # visualizing setarm path
-    set_path = Path()
-    set_path.header.frame_id = "world"
-    set_path.header.stamp = rospy.Time.now()
-    set_path.poses = []
-    lookback = getLookbackLength()
-    vX = (pos_hist[BALL_X][-1] - pos_hist[BALL_X][lookback]) / (pos_hist[TIME][-1] - pos_hist[TIME][lookback]) * X_MODIFIER
-    timeLeft = abs((pos_hist[BALL_X][-1] - ARM_SET_X)/vX)
-    pvY = (ARM_SET_Y - pos_hist[BALL_Y][-1])/timeLeft
-    pvZ = (ARM_SET_Z - pos_hist[BALL_Z][-1] + 4.9 * (timeLeft ** 2))/timeLeft
-    for i in np.arange(0, 1, 0.01):
-        nX = pos_hist[BALL_X][-1] + vX * (i * timeLeft)
-        nY = pos_hist[BALL_Y][-1] + pvY * (i * timeLeft)
-        nZ = pos_hist[BALL_Z][-1] + pvZ * (i * timeLeft) - 4.9*((i * timeLeft)**2)
-        newPos = PoseStamped()
-        newPos.pose.position.x = nX
-        newPos.pose.position.y = nY
-        newPos.pose.position.z = nZ
-        newPos.header.frame_id = "world"
-        newPos.header.stamp = rospy.Time.now()
-        set_path.poses.append(newPos)
-    publisher_setarm_path.publish(set_path)
+    if visualize:
+        setarm_vis_msg = PointStamped()
+        setarm_vis_msg.header.frame_id = "world"
+        setarm_vis_msg.header.stamp = rospy.Time.now()
+        setarm_vis_msg.point.x = ARM_SET_X
+        setarm_vis_msg.point.y = ARM_SET_Y
+        setarm_vis_msg.point.z = ARM_SET_Z
+        publisher_setarm_vis.publish(setarm_vis_msg)
+        # visualizing setarm path
+        set_path = Path()
+        set_path.header.frame_id = "world"
+        set_path.header.stamp = rospy.Time.now()
+        set_path.poses = []
+        lookback = getLookbackLength()
+        vX = (pos_hist[BALL_X][-1] - pos_hist[BALL_X][lookback]) / (pos_hist[TIME][-1] - pos_hist[TIME][lookback]) * X_MODIFIER
+        timeLeft = abs((pos_hist[BALL_X][-1] - ARM_SET_X)/vX)
+        pvY = (ARM_SET_Y - pos_hist[BALL_Y][-1])/timeLeft
+        pvZ = (ARM_SET_Z - pos_hist[BALL_Z][-1] + 4.9 * (timeLeft ** 2))/timeLeft
+        for i in np.arange(0, 1, 0.01):
+            nX = pos_hist[BALL_X][-1] + vX * (i * timeLeft)
+            nY = pos_hist[BALL_Y][-1] + pvY * (i * timeLeft)
+            nZ = pos_hist[BALL_Z][-1] + pvZ * (i * timeLeft) - 4.9*((i * timeLeft)**2)
+            newPos = PoseStamped()
+            newPos.pose.position.x = nX
+            newPos.pose.position.y = nY
+            newPos.pose.position.z = nZ
+            newPos.header.frame_id = "world"
+            newPos.header.stamp = rospy.Time.now()
+            set_path.poses.append(newPos)
+        publisher_setarm_path.publish(set_path)
     
 
 
