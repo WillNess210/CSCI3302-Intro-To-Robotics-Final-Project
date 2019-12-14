@@ -206,6 +206,7 @@ def calcPosition():
     vZM.poses = [vZO, vZF]
     vZM.header = pred_path_msg.header
     publisher_vz.publish(vZM)
+    print("velocities: " , vX, vY, vZ)
     # CHECK IF THIS IS NOT A CATCHABLE BALL
     if interceptY < LOWEST_Y or interceptY > HIGHEST_Y:
         print("Not setting setpoints. interceptY isn't realistic ")
