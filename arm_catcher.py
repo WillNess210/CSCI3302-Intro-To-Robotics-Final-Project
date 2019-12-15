@@ -7,6 +7,10 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PolygonStamped, Point32
+from geometry_msgs.msg import Pose, Point, Quaternion
+import intera_interface
+import copy 
+
 from visualization_msgs.msg import Marker
 import numpy as np
 import statistics as stats
@@ -39,6 +43,9 @@ LOWEST_Z = 0.5
 HIGHEST_Z = 3
 hasCaught = False
 visualize = True
+g_limb = None
+g_orientation_hand_down = None
+g_position_neutral = None
 
 
 CYCLE_TIME = 0.01
@@ -105,7 +112,8 @@ def main():
             publisher_catchcube.publish(catchcube)
         # ARM CONTROLLING LOGIC GOES BELOW HERE
         if hasCaught == False:
-            controlArm(publisher_arm)
+            print("MOVING ARM##########################################################################3")
+            controlArm(publisher_arm) 
         # ARM CONTROLLING LOGIC ENDS HERE
         # PATH PUBLISHER LOGIC GOES BELOW HERE
         if visualize:
@@ -138,7 +146,7 @@ def init():
     subscriber_mocap = rospy.Subscriber(MOCAP_TOPIC_NAME, PoseStamped, callback_update_mocap)
 
     # PUBLISHER
-    #publisher_arm = rospy.Publisher('topic_name', message_type , queue_size=10) # TODO fill in parameters
+    #publisher_arm = rospy.Publisher('rightl6', Pose , queue_size=10) # TODO fill in parameters
     publisher_intercept = rospy.Publisher('intercept', PointStamped, queue_size=10)
     publisher_path = rospy.Publisher('ball_path', Path, queue_size=10)
     publisher_pred_path = rospy.Publisher('pred_ball_path', Path, queue_size=10)
@@ -150,6 +158,22 @@ def init():
     publisher_catchcube = rospy.Publisher('catch_cube', Marker, queue_size=10)
     publisher_setarm_vis = rospy.Publisher('arm_set_Vis', PointStamped, queue_size=10)
     publisher_setarm_path = rospy.Publisher('arm_set_path', Path, queue_size=10)
+    g_limb = intera_interface.Limb('right')
+
+    # This quaternion will have the hand face straight down (ideal for picking tasks)
+    g_orientation_hand_down = Quaternion()
+    g_orientation_hand_down.x = 0.704238785359
+    g_orientation_hand_down.y =0.709956638597
+    g_orientation_hand_down.z = -0.00229009932359
+    g_orientation_hand_down.w = 0.00201493272073
+
+    # This is the default neutral position for the robot's hand (no guarantee this will move the joints to neutral though)
+    g_position_neutral = Point()
+    g_position_neutral.x = .5
+    g_position_neutral.y =-.15
+    g_position_neutral.z = 0.3
+
+
 
 
 
@@ -429,12 +453,50 @@ def controlArm(arm_pub):
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # USE THESE VARAIBLES AS SET POINTS
     global ARM_ORIGIN_X, ARM_ORIGIN_Y, ARM_ORIGIN_Z, LOWEST_Y, LOWEST_Z, HIGHEST_Z, HIGHEST_Y
     if not (ARM_SET_X == ARM_ORIGIN_X and ARM_SET_Y >= LOWEST_Y and ARM_SET_Y <= HIGHEST_Y and ARM_SET_Z >= LOWEST_Z and ARM_SET_Z <= HIGHEST_Z):
+        print("Not a valid arm set position, not driving")
         return
     # arm_pub.publish(arm_msg) # EXAMPLE CALL
     # TODO add in logic to set arm position to set X,Y,Z
+    
     TRANSLATED_X = ARM_SET_X - ARM_ORIGIN_X
     TRANSLATED_Y = ARM_ORIGIN_Y + (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
     TRANSLATED_Z = ARM_ORIGIN_Z + (ARM_SET_Z - ((LOWEST_Z + HIGHEST_Z)/2.0))
+    #movearm(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
+    helper(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
+
+def helper(x,y,z):
+ # Create a new pose (Position and Orientation) to solve for
+    target_pose = Pose()
+    target_pose.position = copy.deepcopy(g_position_neutral)
+    target_pose.orientation = copy.deepcopy(g_orientation_hand_down)
+
+    target_pose.position.x =x # Add 20cm to the x axis position of the hand
+    target_pose.position.y =y
+    target_pose.position.z =z
+
+
+
+    # Call the IK service to solve for joint angles for the desired pose
+    target_joint_angles = g_limb.ik_request(target_pose, "right_hand")
+
+    # The IK Service returns false if it can't find a joint configuration
+    if target_joint_angles is False:
+        rospy.logerr("Couldn't solve for position %s" % str(target_pose))
+        return
+
+    # Set the robot speed (takes a value between 0 and 1)
+    g_limb.set_joint_position_speed(.3)
+
+    # Send the robot arm to the joint angles in target_joint_angles, wait up to 2 seconds to finish
+    g_limb.move_to_joint_positions(target_joint_angles)
+
+    # Find the new coordinates of the hand and the angles the motors are currently at
+    new_hand_pose = copy.deepcopy(g_limb._tip_states.states[0].pose)
+    new_angles = g_limb.joint_angles()
+    rospy.loginfo("New Hand Pose:\n %s" % str(new_hand_pose))
+    rospy.loginfo("Target Joint Angles:\n %s" % str(target_joint_angles))
+    rospy.loginfo("New Joint Angles:\n %s" % str(new_angles))
+
 
 
 if __name__ == "__main__":
