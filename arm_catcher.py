@@ -15,7 +15,7 @@ from visualization_msgs.msg import Marker
 import numpy as np
 import statistics as stats
 
-MOCAP_TOPIC_NAME = "/vrpn_client_node/num_7/pose"
+MOCAP_TOPIC_NAME = "/vrpn_client_node/tennisball/pose" #"/vrpn_client_node/num_7/pose"
 publisher_arm = None
 publisher_intercept = None
 publisher_path = None
@@ -29,7 +29,7 @@ publisher_catchcube = None
 publisher_setarm_vis = None
 publisher_setarm_path = None
 UNIQUE_ARM_SET_HISTORY = [[], [], [], []]
-ARM_SET_X = -2.4 # SET THIS TO ARM CATCH VALUE
+ARM_SET_X = 0.3 #-2.4 # SET THIS TO ARM CATCH VALUE
 ARM_SET_Y = 0.0 # STARTING POINT
 ARM_SET_Z = 0.0 # STARTING POINT
 ARM_ORIGIN_X = ARM_SET_X
@@ -37,8 +37,8 @@ ARM_ORIGIN_Y = 0.0
 ARM_ORIGIN_Z = 1.0
 # ROBOT SETTINGS
 CATCH_AT_X = ARM_SET_X
-LOWEST_Y = -0.5
-HIGHEST_Y = 0.5
+LOWEST_Y = -1
+HIGHEST_Y = 1
 LOWEST_Z = 0.5
 HIGHEST_Z = 3
 hasCaught = False
