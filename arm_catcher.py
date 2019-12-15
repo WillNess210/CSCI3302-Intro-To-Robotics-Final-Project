@@ -29,18 +29,18 @@ publisher_catchcube = None
 publisher_setarm_vis = None
 publisher_setarm_path = None
 UNIQUE_ARM_SET_HISTORY = [[], [], [], []]
-ARM_SET_X = 0.3 #-2.4 # SET THIS TO ARM CATCH VALUE
+ARM_SET_X = 0.3 #-2.4 # SET THIS TO X VALUE WHERE ARM WILL CATCH BALL
 ARM_SET_Y = 0.0 # STARTING POINT
 ARM_SET_Z = 0.0 # STARTING POINT
-ARM_ORIGIN_X = ARM_SET_X
-ARM_ORIGIN_Y = 0.0
-ARM_ORIGIN_Z = 1.0
+ARM_ORIGIN_X = 0.5
+ARM_ORIGIN_Y = 0.0 # SETPOINT FOR Y TO BE IN CENTER OF BOX
+ARM_ORIGIN_Z = 0.432 # SETPOINT FOR Z TO BE IN CENTER OF BOX
 # ROBOT SETTINGS
 CATCH_AT_X = ARM_SET_X
-LOWEST_Y = -1
-HIGHEST_Y = 1
-LOWEST_Z = 0.5
-HIGHEST_Z = 3
+LOWEST_Y = -0.5
+HIGHEST_Y = 0.5
+LOWEST_Z = 0.914
+HIGHEST_Z = 1.778
 hasCaught = False
 visualize = True
 g_limb = None
@@ -59,7 +59,9 @@ def main():
     global publisher_arm, publisher_catchzone, publisher_catchcube
     global ball_paths, latest_seq_update, visualize
     global CATCH_AT_X, LOWEST_Y, LOWEST_Z, HIGHEST_Y, HIGHEST_Z, ARM_SET_Y, ARM_SET_Z, hasCaught
-    init()       
+    global g_limb, g_orientation_hand_down, g_position_neutral
+    init()   
+    helper(.5,0.0,.3)    
     # start loop
     bpsize = len(ball_paths)
     while not rospy.is_shutdown():
@@ -112,7 +114,6 @@ def main():
             publisher_catchcube.publish(catchcube)
         # ARM CONTROLLING LOGIC GOES BELOW HERE
         if hasCaught == False:
-            print("MOVING ARM##########################################################################3")
             controlArm(publisher_arm) 
         # ARM CONTROLLING LOGIC ENDS HERE
         # PATH PUBLISHER LOGIC GOES BELOW HERE
@@ -135,9 +136,11 @@ def init():
     global publisher_arm, publisher_intercept, publisher_path, publisher_pred_path, publisher_ball, publisher_vx, publisher_vy, publisher_vz, publisher_catchzone, publisher_catchcube, publisher_setarm_vis
     global subscriber_mocap, publisher_setarm_path
     global ball_paths
+    global g_limb, g_orientation_hand_down, g_position_neutral
     global hasCaught
     hasCaught = False
     rospy.init_node("catcher_driver")
+
 
     # path setup
     ball_paths = []
@@ -158,6 +161,7 @@ def init():
     publisher_catchcube = rospy.Publisher('catch_cube', Marker, queue_size=10)
     publisher_setarm_vis = rospy.Publisher('arm_set_Vis', PointStamped, queue_size=10)
     publisher_setarm_path = rospy.Publisher('arm_set_path', Path, queue_size=10)
+
     g_limb = intera_interface.Limb('right')
 
     # This quaternion will have the hand face straight down (ideal for picking tasks)
@@ -169,11 +173,13 @@ def init():
 
     # This is the default neutral position for the robot's hand (no guarantee this will move the joints to neutral though)
     g_position_neutral = Point()
-    g_position_neutral.x = .5
-    g_position_neutral.y =-.15
-    g_position_neutral.z = 0.3
-
-
+    OX = 0.5
+    OY = 0.0
+    OZ = 0.432 # 
+    g_position_neutral.x = OX
+    g_position_neutral.y = OY
+    g_position_neutral.z = OZ
+    g_limb.move_to_neutral()
 
 
 
@@ -318,7 +324,6 @@ def calcPosition():
         vZM.poses = [vZO, vZF]
         vZM.header = pred_path_msg.header
         publisher_vz.publish(vZM)
-        print("velocities: " , vX, vY, vZ)
     # CHECK IF THIS IS NOT A CATCHABLE BALL
     if interceptY < LOWEST_Y or interceptY > HIGHEST_Y:
         print("Not setting setpoints. interceptY isn't realistic ")
@@ -358,13 +363,12 @@ def callback_update_mocap(data):
         ball_point.point.y = data.pose.position.y
         ball_point.point.z = data.pose.position.z
         publisher_ball.publish(ball_point)
-    print("received mocap data")
 
     bX = data.pose.position.x
     bY = data.pose.position.y
     bZ = data.pose.position.z
     data_time = rospy.Time(data.header.stamp.secs, data.header.stamp.nsecs)
-    print("Received: ", bX, bY, bZ, " at time ", data_time.to_sec())
+    #print("Received: ", bX, bY, bZ, " at time ", data_time.to_sec())
     # CHECK IF BALL HAS PASSED PLANE
     if not (lX == -1.0):
         if(np.sign(lX - ARM_SET_X) != np.sign(bX - ARM_SET_X)):
@@ -409,7 +413,7 @@ def callback_update_mocap(data):
     if(len(recentPts) > 1):
         ARM_SET_Y = stats.mean(recentPts[ARM_Y])
         ARM_SET_Z = stats.mean(recentPts[ARM_Z])
-        print("TIME: ", len(recentPts[TIME]))
+        #print(print("TIME: ", len(recentPts[TIME]))
     print("Setting setpoints to: ", ARM_SET_X, ARM_SET_Y, ARM_SET_Z)
     if visualize:
         setarm_vis_msg = PointStamped()
@@ -452,19 +456,21 @@ def callback_update_mocap(data):
 def controlArm(arm_pub):
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # USE THESE VARAIBLES AS SET POINTS
     global ARM_ORIGIN_X, ARM_ORIGIN_Y, ARM_ORIGIN_Z, LOWEST_Y, LOWEST_Z, HIGHEST_Z, HIGHEST_Y
-    if not (ARM_SET_X == ARM_ORIGIN_X and ARM_SET_Y >= LOWEST_Y and ARM_SET_Y <= HIGHEST_Y and ARM_SET_Z >= LOWEST_Z and ARM_SET_Z <= HIGHEST_Z):
+    if not ( ARM_SET_Y >= LOWEST_Y and ARM_SET_Y <= HIGHEST_Y and ARM_SET_Z >= LOWEST_Z and ARM_SET_Z <= HIGHEST_Z):
         print("Not a valid arm set position, not driving")
         return
+    #g_limb.move_to_neutral()
     # arm_pub.publish(arm_msg) # EXAMPLE CALL
     # TODO add in logic to set arm position to set X,Y,Z
     
-    TRANSLATED_X = ARM_SET_X - ARM_ORIGIN_X
-    TRANSLATED_Y = ARM_ORIGIN_Y + (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
+    TRANSLATED_X = ARM_ORIGIN_X
+    TRANSLATED_Y = ARM_ORIGIN_Y - (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
     TRANSLATED_Z = ARM_ORIGIN_Z + (ARM_SET_Z - ((LOWEST_Z + HIGHEST_Z)/2.0))
     #movearm(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
     helper(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
 
 def helper(x,y,z):
+    global g_limb
  # Create a new pose (Position and Orientation) to solve for
     target_pose = Pose()
     target_pose.position = copy.deepcopy(g_position_neutral)
@@ -502,118 +508,3 @@ def helper(x,y,z):
 if __name__ == "__main__":
     main()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    ## OLD CALCPOS, BEFORE REWRITE
-'''
-    #Calculate final arm position function, uses pos_hist
-def calcPosition():
-    global pos_hist, publisher_pred_path, publisher_vx, publisher_vy, publisher_vz
-    # ONLY RUN IF POSSIBLE
-    if len(pos_hist[TIME]) < 2:
-        print("Not setting setpoints. Not enough data")
-        return None, None, None
-    # CALCULATE LATEST VEL X & TIME LEFT
-    dX = pos_hist[BALL_X][-1] - pos_hist[BALL_X][getLookbackLength()]
-    dT = (pos_hist[TIME][-1] - pos_hist[TIME][getLookbackLength()])
-    vX = dX/dT
-    distanceLeft = pos_hist[BALL_X][-1] - pos_hist[ARM_X][-1]
-    timeLeft = abs(distanceLeft / vX)
-    # CALCULATE VELOCITY & INTERCEPT
-    vY = (pos_hist[BALL_Y][-1] - pos_hist[BALL_Y][getLookbackLength()])/dT
-    interceptY = pos_hist[BALL_Y][-1] + vY*timeLeft - 4.9*timeLeft**2 #Y_0 + VY*T - 4.9T^2
-    # CALCULATE END POSITION FOR Z
-    dZ = pos_hist[BALL_Z][-1] - pos_hist[BALL_Z][getLookbackLength()]
-    vZ = dZ / dT
-    interceptZ = pos_hist[BALL_Z][-1] + vZ * timeLeft
-    print ("INTERCEPT BALL AT: ", CATCH_AT_X, interceptY, interceptZ)
-    # PUBLISH PREDICTED PATH TO THE VISUALIZER
-    pred_path = []
-    for i in np.arange(0, 1, 0.01):
-        nX = pos_hist[BALL_X][-1] + vX * (i * timeLeft)
-        nY = pos_hist[BALL_Y][-1] + vY * (i * timeLeft) - 4.9*((i * timeLeft)**2)
-        nZ = pos_hist[BALL_Z][-1] + vX * (i * timeLeft)
-        newPos = PoseStamped()
-        newPos.pose.position.x = nX
-        newPos.pose.position.y = nZ
-        newPos.pose.position.z = nY
-        newPos.header.frame_id = "world"
-        now = rospy.get_rostime()
-        newPos.header.stamp.secs = now.secs
-        newPos.header.stamp.nsecs = now.nsecs
-        pred_path.append(newPos)
-    pred_path_msg = Path()
-    pred_path_msg.poses = pred_path
-    pred_path_msg.header.frame_id = "world"
-    now = rospy.get_rostime()
-    pred_path_msg.header.stamp.secs = now.secs
-    pred_path_msg.header.stamp.nsecs = now.nsecs
-    publisher_pred_path.publish(pred_path_msg)
-    # PUBLISH VX, VY, VZ TO THE VISUALIZER
-    vXM = Path()
-    vXO = PoseStamped()
-    vXO.pose.position.x = pos_hist[BALL_X][-1]
-    vXO.pose.position.y = pos_hist[BALL_Z][-1]
-    vXO.pose.position.z = pos_hist[BALL_Y][-1]
-    vXF = PoseStamped()
-    vXF.pose.position.x = pos_hist[BALL_X][-1] + vX
-    vXF.pose.position.y = pos_hist[BALL_Z][-1]
-    vXF.pose.position.z = pos_hist[BALL_Y][-1]
-    vXM.poses = [vXO, vXF]
-    vXM.header = pred_path_msg.header
-    publisher_vx.publish(vXM)
-    #y
-    vYM = Path()
-    vYO = PoseStamped()
-    vYO.pose.position.x = pos_hist[BALL_X][-1]
-    vYO.pose.position.y = pos_hist[BALL_Z][-1]
-    vYO.pose.position.z = pos_hist[BALL_Y][-1]
-    vYF = PoseStamped()
-    vYF.pose.position.x = pos_hist[BALL_X][-1]
-    vYF.pose.position.y = pos_hist[BALL_Z][-1]
-    vYF.pose.position.z = pos_hist[BALL_Y][-1] + vY
-    vYM.poses = [vYO, vYF]
-    vYM.header = pred_path_msg.header
-    publisher_vy.publish(vYM)
-    #z
-    vZM = Path()
-    vZO = PoseStamped()
-    vZO.pose.position.x = pos_hist[BALL_X][-1]
-    vZO.pose.position.y = pos_hist[BALL_Z][-1]
-    vZO.pose.position.z = pos_hist[BALL_Y][-1]
-    vZF = PoseStamped()
-    vZF.pose.position.x = pos_hist[BALL_X][-1]
-    vZF.pose.position.y = pos_hist[BALL_Z][-1] + vZ
-    vZF.pose.position.z = pos_hist[BALL_Y][-1]
-    vZM.poses = [vZO, vZF]
-    vZM.header = pred_path_msg.header
-    publisher_vz.publish(vZM)
-    print("velocities: " , vX, vY, vZ)
-    # CHECK IF THIS IS NOT A CATCHABLE BALL
-    if interceptY < LOWEST_Y or interceptY > HIGHEST_Y:
-        print("Not setting setpoints. interceptY isn't realistic ")
-        return None, None, None
-    if interceptZ < LOWEST_Z or interceptZ > HIGHEST_Z:
-        print("Not setting setpoints. interceptZ isn't realistic: ")
-        return None, None, None
-    # CALCULATE FINAL POSITIONS
-    fX = CATCH_AT_X
-    fY = interceptY
-    fZ = interceptZ
-
-    return fX, fY, fZ'''

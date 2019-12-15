@@ -1,6 +1,8 @@
 import intera_interface
 import rospy
 import copy 
+import time
+import random
 
 from geometry_msgs.msg import Pose, Point, Quaternion
 
@@ -22,27 +24,40 @@ def init():
 
     # This is the default neutral position for the robot's hand (no guarantee this will move the joints to neutral though)
     g_position_neutral = Point()
-    g_position_neutral.x = .5
-    g_position_neutral.y =-.15
-    g_position_neutral.z = 0.3
+    OX = 0.5
+    OY = 0.0
+    OZ = 0.432 # 
+    g_position_neutral.x = OX
+    g_position_neutral.y = OY
+    g_position_neutral.z = OZ
+    g_limb.move_to_neutral()
 
 def main():
     global g_limb, g_position_neutral, g_orientation_hand_down
     init()
 
-    # Move the arm to its neutral position
-    g_limb.move_to_neutral()
 
     rospy.loginfo("Old Hand Pose:\n %s" % str(g_limb._tip_states.states[0].pose))
     rospy.loginfo("Old Joint Angles:\n %s" % str(g_limb.joint_angles()))
-    x = .5
-    y=-.15
-    z = .3
-    for i in range(2):
-	x += .1
-	y+=.1
-	z += .1
-	helper(x,y,z)
+
+    OX = 0.5
+    OY = 0.0
+    OZ = 0.432
+    helper(OX, OY, OZ)
+    print("SENDING TO", OX, OY, OZ)
+    waitToStart = time.time()
+    while time.time() - waitToStart < 2:
+        h = 3
+    while(True):
+        startTime = time.time()
+        NX = OX
+        NY = OY + (random.random() - 0.5)
+        NZ = (random.random()) * 0.864
+        helper(NX, NY, NZ)
+        print("SENDING TO", NX, NY, NZ)
+        while time.time() - startTime < 4:
+            h = 3
+            
 
 def helper(x,y,z):
  # Create a new pose (Position and Orientation) to solve for
@@ -65,7 +80,7 @@ def helper(x,y,z):
         return
 
     # Set the robot speed (takes a value between 0 and 1)
-    g_limb.set_joint_position_speed(.3)
+    g_limb.set_joint_position_speed(1.0)
 
     # Send the robot arm to the joint angles in target_joint_angles, wait up to 2 seconds to finish
     g_limb.move_to_joint_positions(target_joint_angles, timeout=2)
