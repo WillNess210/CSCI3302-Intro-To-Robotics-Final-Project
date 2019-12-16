@@ -34,18 +34,18 @@ ARM_SET_Y = 0.0 # STARTING POINT
 ARM_SET_Z = 0.0 # STARTING POINT
 ARM_ORIGIN_X = 0.5
 ARM_ORIGIN_Y = 0.0 # SETPOINT FOR Y TO BE IN CENTER OF BOX
-ARM_ORIGIN_Z = 0.432 # SETPOINT FOR Z TO BE IN CENTER OF BOX
+ARM_ORIGIN_Z = 0.482 # SETPOINT FOR Z TO BE IN CENTER OF BOX
 # ROBOT SETTINGS
 CATCH_AT_X = ARM_SET_X
 LOWEST_Y = -0.5
 HIGHEST_Y = 0.5
-LOWEST_Z = 0.914
+LOWEST_Z = 1.014
 HIGHEST_Z = 1.778
 hasCaught = False
 visualize = True
 g_limb = None
 g_orientation_hand_down = None
-
+Z_OFFSET = 0.152
 
 CYCLE_TIME = 0.01
 ball_paths = None
@@ -451,14 +451,15 @@ def controlArm():
         return
     
     TRANSLATED_X = ARM_ORIGIN_X
-    TRANSLATED_Y = ARM_ORIGIN_Y - (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
+    TRANSLATED_Y = ARM_ORIGIN_Y + (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
     TRANSLATED_Z = ARM_ORIGIN_Z + (ARM_SET_Z - ((LOWEST_Z + HIGHEST_Z)/2.0))
     print("AC: Arm Controlling setting to translated:",TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
     #movearm(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
     helper(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
 
 def helper(x,y,z):
-    global g_limb, g_orientation_hand_down
+    global g_limb, g_orientation_hand_down, Z_OFFSET
+    z += Z_OFFSET
  # Create a new pose (Position and Orientation) to solve for
     target_pose = Pose()
     target_pose.orientation = copy.deepcopy(g_orientation_hand_down)
@@ -477,7 +478,7 @@ def helper(x,y,z):
         return
 
     # Set the robot speed (takes a value between 0 and 1)
-    g_limb.set_joint_position_speed(0.3)
+    g_limb.set_joint_position_speed(0.9)
 
     # Send the robot arm to the joint angles in target_joint_angles, wait up to 2 seconds to finish
     g_limb.move_to_joint_positions(target_joint_angles, timeout=2)
