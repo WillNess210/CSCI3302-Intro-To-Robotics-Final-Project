@@ -45,7 +45,6 @@ hasCaught = False
 visualize = True
 g_limb = None
 g_orientation_hand_down = None
-g_position_neutral = None
 
 
 CYCLE_TIME = 0.01
@@ -56,12 +55,11 @@ Y_MODIFIER = 1.0 # increase to overestimate x velocity, decrease to underestimat
 Z_MODIFIER = 1.0 # increase to overestimate x velocity, decrease to underestimate. 1 means normal
 
 def main():
-    global publisher_arm, publisher_catchzone, publisher_catchcube
+    global publisher_catchzone, publisher_catchcube
     global ball_paths, latest_seq_update, visualize
     global CATCH_AT_X, LOWEST_Y, LOWEST_Z, HIGHEST_Y, HIGHEST_Z, ARM_SET_Y, ARM_SET_Z, hasCaught
-    global g_limb, g_orientation_hand_down, g_position_neutral
+    global pos_hist
     init()   
-    helper(.5,0.0,.3)    
     # start loop
     bpsize = len(ball_paths)
     while not rospy.is_shutdown():
@@ -113,8 +111,8 @@ def main():
             catchcube.color.a = 0.35
             publisher_catchcube.publish(catchcube)
         # ARM CONTROLLING LOGIC GOES BELOW HERE
-        if hasCaught == False:
-            controlArm(publisher_arm) 
+        if hasCaught == False and len(pos_hist[TIME]) >= 2:
+            controlArm() 
         # ARM CONTROLLING LOGIC ENDS HERE
         # PATH PUBLISHER LOGIC GOES BELOW HERE
         if visualize:
@@ -133,14 +131,20 @@ def main():
             rospy.sleep(CYCLE_TIME - (endTime - startTime))
 
 def init():
-    global publisher_arm, publisher_intercept, publisher_path, publisher_pred_path, publisher_ball, publisher_vx, publisher_vy, publisher_vz, publisher_catchzone, publisher_catchcube, publisher_setarm_vis
+    global publisher_intercept, publisher_path, publisher_pred_path, publisher_ball, publisher_vx, publisher_vy, publisher_vz, publisher_catchzone, publisher_catchcube, publisher_setarm_vis
     global subscriber_mocap, publisher_setarm_path
     global ball_paths
     global g_limb, g_orientation_hand_down, g_position_neutral
     global hasCaught
     hasCaught = False
     rospy.init_node("catcher_driver")
-
+    g_limb = intera_interface.Limb('right')
+    g_orientation_hand_down = Quaternion()
+    g_orientation_hand_down.x = 0.704238785359
+    g_orientation_hand_down.y =0.709956638597
+    g_orientation_hand_down.z = -0.00229009932359
+    g_orientation_hand_down.w = 0.00201493272073
+    helper(ARM_ORIGIN_X,ARM_ORIGIN_Y,ARM_ORIGIN_Z)
 
     # path setup
     ball_paths = []
@@ -149,7 +153,6 @@ def init():
     subscriber_mocap = rospy.Subscriber(MOCAP_TOPIC_NAME, PoseStamped, callback_update_mocap)
 
     # PUBLISHER
-    #publisher_arm = rospy.Publisher('rightl6', Pose , queue_size=10) # TODO fill in parameters
     publisher_intercept = rospy.Publisher('intercept', PointStamped, queue_size=10)
     publisher_path = rospy.Publisher('ball_path', Path, queue_size=10)
     publisher_pred_path = rospy.Publisher('pred_ball_path', Path, queue_size=10)
@@ -161,27 +164,6 @@ def init():
     publisher_catchcube = rospy.Publisher('catch_cube', Marker, queue_size=10)
     publisher_setarm_vis = rospy.Publisher('arm_set_Vis', PointStamped, queue_size=10)
     publisher_setarm_path = rospy.Publisher('arm_set_path', Path, queue_size=10)
-
-    g_limb = intera_interface.Limb('right')
-
-    # This quaternion will have the hand face straight down (ideal for picking tasks)
-    g_orientation_hand_down = Quaternion()
-    g_orientation_hand_down.x = 0.704238785359
-    g_orientation_hand_down.y =0.709956638597
-    g_orientation_hand_down.z = -0.00229009932359
-    g_orientation_hand_down.w = 0.00201493272073
-
-    # This is the default neutral position for the robot's hand (no guarantee this will move the joints to neutral though)
-    g_position_neutral = Point()
-    OX = 0.5
-    OY = 0.0
-    OZ = 0.432 # 
-    g_position_neutral.x = OX
-    g_position_neutral.y = OY
-    g_position_neutral.z = OZ
-    g_limb.move_to_neutral()
-
-
 
 
 #
@@ -240,7 +222,7 @@ def calcPosition():
 
     # Only run if possible
     if len(pos_hist[TIME]) < 2:
-        print("Not setting setpoints. Not enough data")
+        print("MC: Not setting setpoints. Not enough data")
         return None, None, None
     # Calculating differences 
     lookback = getLookbackLength()
@@ -254,7 +236,10 @@ def calcPosition():
     vZ = dZ / dT * Z_MODIFIER
     # Checking if ball is headed towards arm
     if (vX > 0 and pos_hist[BALL_X][-1]  >= pos_hist[ARM_X][-1]) or (vX < 0 and pos_hist[BALL_X][-1] <= pos_hist[ARM_X][-1]):
-        print("Not setting setpoints. Ball not headed towards arm")
+        print("MC: Not setting setpoints. Ball not headed towards arm")
+        return None, None, None
+    elif vX == 0:
+        print("MC: Not setting setpoints. Ball has no horizontal velocity in x dir")
         return None, None, None
     # Calculating time left & intercepts
     interceptX = CATCH_AT_X
@@ -326,10 +311,10 @@ def calcPosition():
         publisher_vz.publish(vZM)
     # CHECK IF THIS IS NOT A CATCHABLE BALL
     if interceptY < LOWEST_Y or interceptY > HIGHEST_Y:
-        print("Not setting setpoints. interceptY isn't realistic ")
+        print("MC: Not setting setpoints. interceptY isn't realistic ")
         return None, None, None
     if interceptZ < LOWEST_Z or interceptZ > HIGHEST_Z:
-        print("Not setting setpoints. interceptZ isn't realistic: ")
+        print("MC: Not setting setpoints. interceptZ isn't realistic: ")
         return None, None, None
     # PUBLISH INTERCEPT
     if visualize:
@@ -414,7 +399,7 @@ def callback_update_mocap(data):
         ARM_SET_Y = stats.mean(recentPts[ARM_Y])
         ARM_SET_Z = stats.mean(recentPts[ARM_Z])
         #print(print("TIME: ", len(recentPts[TIME]))
-    print("Setting setpoints to: ", ARM_SET_X, ARM_SET_Y, ARM_SET_Z)
+    print("MC: Setting setpoints to: ", ARM_SET_X, ARM_SET_Y, ARM_SET_Z)
     if visualize:
         setarm_vis_msg = PointStamped()
         setarm_vis_msg.header.frame_id = "world"
@@ -451,34 +436,35 @@ def callback_update_mocap(data):
 #
 # ARM
 #
-
 # ARM CONTROLLING LOGIC
-def controlArm(arm_pub):
+LAST_ARM_SET_Y = -1.0
+LAST_ARM_SET_Z = -1.0
+def controlArm():
     global ARM_SET_X, ARM_SET_Y, ARM_SET_Z # USE THESE VARAIBLES AS SET POINTS
-    global ARM_ORIGIN_X, ARM_ORIGIN_Y, ARM_ORIGIN_Z, LOWEST_Y, LOWEST_Z, HIGHEST_Z, HIGHEST_Y
+    global ARM_ORIGIN_X, ARM_ORIGIN_Y, ARM_ORIGIN_Z, LOWEST_Y, LOWEST_Z, HIGHEST_Z, HIGHEST_Y, LAST_ARM_SET_Y, LAST_ARM_SET_Z
+    if(ARM_SET_Y == LAST_ARM_SET_Y and ARM_SET_Z == LAST_ARM_SET_Z):
+        return # nothing has changed
+    LAST_ARM_SET_Y = ARM_SET_Y
+    LAST_ARM_SET_Z = ARM_SET_Z
     if not ( ARM_SET_Y >= LOWEST_Y and ARM_SET_Y <= HIGHEST_Y and ARM_SET_Z >= LOWEST_Z and ARM_SET_Z <= HIGHEST_Z):
         print("Not a valid arm set position, not driving")
         return
-    #g_limb.move_to_neutral()
-    # arm_pub.publish(arm_msg) # EXAMPLE CALL
-    # TODO add in logic to set arm position to set X,Y,Z
     
     TRANSLATED_X = ARM_ORIGIN_X
     TRANSLATED_Y = ARM_ORIGIN_Y - (ARM_SET_Y - ((LOWEST_Y + HIGHEST_Y)/2.0))
     TRANSLATED_Z = ARM_ORIGIN_Z + (ARM_SET_Z - ((LOWEST_Z + HIGHEST_Z)/2.0))
+    print("AC: Arm Controlling setting to translated:",TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
     #movearm(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
     helper(TRANSLATED_X,TRANSLATED_Y,TRANSLATED_Z)
 
 def helper(x,y,z):
-    global g_limb
+    global g_limb, g_orientation_hand_down
  # Create a new pose (Position and Orientation) to solve for
     target_pose = Pose()
-    target_pose.position = copy.deepcopy(g_position_neutral)
     target_pose.orientation = copy.deepcopy(g_orientation_hand_down)
-
-    target_pose.position.x =x # Add 20cm to the x axis position of the hand
-    target_pose.position.y =y
-    target_pose.position.z =z
+    target_pose.position.x = x # Add 20cm to the x axis position of the hand
+    target_pose.position.y = y
+    target_pose.position.z = z
 
 
 
@@ -491,17 +477,17 @@ def helper(x,y,z):
         return
 
     # Set the robot speed (takes a value between 0 and 1)
-    g_limb.set_joint_position_speed(.3)
+    g_limb.set_joint_position_speed(0.3)
 
     # Send the robot arm to the joint angles in target_joint_angles, wait up to 2 seconds to finish
-    g_limb.move_to_joint_positions(target_joint_angles)
-
+    g_limb.move_to_joint_positions(target_joint_angles, timeout=2)
+    print("Submitted request to move arm to", x, y, z)
     # Find the new coordinates of the hand and the angles the motors are currently at
-    new_hand_pose = copy.deepcopy(g_limb._tip_states.states[0].pose)
-    new_angles = g_limb.joint_angles()
-    rospy.loginfo("New Hand Pose:\n %s" % str(new_hand_pose))
-    rospy.loginfo("Target Joint Angles:\n %s" % str(target_joint_angles))
-    rospy.loginfo("New Joint Angles:\n %s" % str(new_angles))
+    #new_hand_pose = copy.deepcopy(g_limb._tip_states.states[0].pose)
+    #new_angles = g_limb.joint_angles()
+    #rospy.loginfo("New Hand Pose:\n %s" % str(new_hand_pose))
+    #rospy.loginfo("Target Joint Angles:\n %s" % str(target_joint_angles))
+    #rospy.loginfo("New Joint Angles:\n %s" % str(new_angles))
 
 
 

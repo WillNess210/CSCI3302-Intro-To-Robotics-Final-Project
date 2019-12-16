@@ -33,18 +33,13 @@ def init():
     g_limb.move_to_neutral()
 
 def main():
-    global g_limb, g_position_neutral, g_orientation_hand_down
     init()
-
-
-    rospy.loginfo("Old Hand Pose:\n %s" % str(g_limb._tip_states.states[0].pose))
-    rospy.loginfo("Old Joint Angles:\n %s" % str(g_limb.joint_angles()))
 
     OX = 0.5
     OY = 0.0
     OZ = 0.432
     helper(OX, OY, OZ)
-    print("SENDING TO", OX, OY, OZ)
+    '''print("SENDING TO", OX, OY, OZ)
     waitToStart = time.time()
     while time.time() - waitToStart < 2:
         h = 3
@@ -56,18 +51,16 @@ def main():
         helper(NX, NY, NZ)
         print("SENDING TO", NX, NY, NZ)
         while time.time() - startTime < 4:
-            h = 3
+            h=3'''
             
 
 def helper(x,y,z):
  # Create a new pose (Position and Orientation) to solve for
     target_pose = Pose()
-    target_pose.position = copy.deepcopy(g_position_neutral)
     target_pose.orientation = copy.deepcopy(g_orientation_hand_down)
-
-    target_pose.position.x =x # Add 20cm to the x axis position of the hand
-    target_pose.position.y =y
-    target_pose.position.z =z
+    target_pose.position.x = x # Add 20cm to the x axis position of the hand
+    target_pose.position.y = y
+    target_pose.position.z = z
 
 
 
@@ -80,17 +73,12 @@ def helper(x,y,z):
         return
 
     # Set the robot speed (takes a value between 0 and 1)
-    g_limb.set_joint_position_speed(1.0)
+    g_limb.set_joint_position_speed(.2)
 
     # Send the robot arm to the joint angles in target_joint_angles, wait up to 2 seconds to finish
     g_limb.move_to_joint_positions(target_joint_angles, timeout=2)
-
-    # Find the new coordinates of the hand and the angles the motors are currently at
-    new_hand_pose = copy.deepcopy(g_limb._tip_states.states[0].pose)
-    new_angles = g_limb.joint_angles()
-    rospy.loginfo("New Hand Pose:\n %s" % str(new_hand_pose))
-    rospy.loginfo("Target Joint Angles:\n %s" % str(target_joint_angles))
-    rospy.loginfo("New Joint Angles:\n %s" % str(new_angles))
+    print("Submitted request to move arm to", x, y, z)
 
 if __name__ == "__main__":
+    print("Starting program...")
     main()
