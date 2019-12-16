@@ -29,7 +29,7 @@ publisher_catchcube = None
 publisher_setarm_vis = None
 publisher_setarm_path = None
 UNIQUE_ARM_SET_HISTORY = [[], [], [], []]
-ARM_SET_X = 0.3 #-2.4 # SET THIS TO X VALUE WHERE ARM WILL CATCH BALL
+ARM_SET_X = -3.75 #-2.4 # SET THIS TO X VALUE WHERE ARM WILL CATCH BALL
 ARM_SET_Y = 0.0 # STARTING POINT
 ARM_SET_Z = 0.0 # STARTING POINT
 ARM_ORIGIN_X = 0.5
@@ -45,7 +45,7 @@ hasCaught = False
 visualize = True
 g_limb = None
 g_orientation_hand_down = None
-Z_OFFSET = 0.152
+Z_OFFSET = -0.05
 
 CYCLE_TIME = 0.01
 ball_paths = None
@@ -172,7 +172,7 @@ def init():
 #Store ball location history
 pos_hist = [[], [], [], [], [], [], []] # time, arm x, arm y, arm z, ball x, ball y, ball z
 history_length = 100
-LOOKBACK_LENGTH = 10 # 2 means use the previous 2 datapoints, 3 means use the previous 3 datapoints, etc..
+LOOKBACK_LENGTH = 30 # 2 means use the previous 2 datapoints, 3 means use the previous 3 datapoints, etc..
 TIME = 0
 ARM_X = 1
 ARM_Y = 2
